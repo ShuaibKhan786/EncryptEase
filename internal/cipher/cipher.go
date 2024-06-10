@@ -148,10 +148,10 @@ func Decryption(md DecryptionMetadata,c chan<- CipherProgress, tracker *GlobalPr
 		return err
 	}
 	defer func() {
-		tracker.Mu.Lock()
-		tracker.Tracker[md.Filename] = MdProgressTracker{Fpair: filepair}
-		tracker.Mu.Unlock()
 		fileClose(filepair)
+		tracker.Mu.Lock()
+		tracker.Tracker[md.Filename] = MdProgressTracker{Fpair: FilePair{}}
+		tracker.Mu.Unlock()
 	}()
 
 	tracker.Mu.Lock()

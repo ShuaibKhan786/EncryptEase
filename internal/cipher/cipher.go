@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"io"
 	"os"
+	"sync"
 
 	cliarg "github.com/ShuaibKhan786/cipher-project/internal/cmdlineargs"
 	salting "github.com/ShuaibKhan786/cipher-project/internal/salting"
@@ -26,8 +27,8 @@ type EncryptionMetadata struct {
 }
 
 type FilePair struct {
-	rfile *os.File
-	wfile *os.File
+	Rfile *os.File
+	Wfile *os.File
 }
 
 type CipherProgress struct {
@@ -35,18 +36,50 @@ type CipherProgress struct {
 	Percentage float64
 }
 
+type MdProgressTracker struct {
+	Tracker bool
+	Fpair FilePair
+}
+
+type GlobalProgressTracker struct {
+	Mu sync.Mutex
+	Tracker map[string]MdProgressTracker
+}
+
 const (
 	ChunkSize = 1024 * 1024
 )
 
-func Encryption(md EncryptionMetadata,c chan<- CipherProgress) error {
+func InitGlobalProgressTracker(fileNames []string) *GlobalProgressTracker {
+	gtracker := &GlobalProgressTracker{
+		Tracker: make(map[string]MdProgressTracker),
+	}
+	
+	gtracker.Mu.Lock()
+	defer gtracker.Mu.Unlock()
+	for _, filename := range fileNames {
+		gtracker.Tracker[filename] = MdProgressTracker{Tracker: false}
+	}
+	return gtracker
+}
+
+func Encryption(md EncryptionMetadata,c chan<- CipherProgress,tracker *GlobalProgressTracker) error {
 	filepair, err := openCreate(md.Filename, cliarg.EncryptionOp)
 	if err != nil {
 		return err
 	}
-	defer fileClose(filepair)
+	defer func() {
+		tracker.Mu.Lock()
+		tracker.Tracker[md.Filename] = MdProgressTracker{Fpair: filepair}
+		tracker.Mu.Unlock()
+		fileClose(filepair)
+	}()
 
-	filestat, err := filepair.rfile.Stat()
+	tracker.Mu.Lock()
+	tracker.Tracker[md.Filename] = MdProgressTracker{Fpair: filepair}
+	tracker.Mu.Unlock()
+
+	filestat, err := filepair.Rfile.Stat()
 	if  err != nil{
 		fileClose(filepair)
 		os.Remove(md.Filename + cliarg.EncryptedFileExt)
@@ -54,12 +87,12 @@ func Encryption(md EncryptionMetadata,c chan<- CipherProgress) error {
 	}
 	totalFileSize := float64(filestat.Size())
 
-	if _, err := filepair.wfile.Write(md.Salt); err != nil {
+	if _, err := filepair.Wfile.Write(md.Salt); err != nil {
 		fileClose(filepair)
 		os.Remove(md.Filename + cliarg.EncryptedFileExt)
 		return err
 	}
-	if _, err := filepair.wfile.Write(md.Nonce); err != nil {
+	if _, err := filepair.Wfile.Write(md.Nonce); err != nil {
 		fileClose(filepair)
 		os.Remove(md.Filename + cliarg.EncryptedFileExt)
 		return err
@@ -72,8 +105,8 @@ func Encryption(md EncryptionMetadata,c chan<- CipherProgress) error {
 		return err
 	}
 
-	rBuffer := bufio.NewReader(filepair.rfile)
-	wBuffer := bufio.NewWriter(filepair.wfile)
+	rBuffer := bufio.NewReader(filepair.Rfile)
+	wBuffer := bufio.NewWriter(filepair.Wfile)
 	defer wBuffer.Flush()
 	buffer := make([]byte, ChunkSize)
 
@@ -101,10 +134,13 @@ func Encryption(md EncryptionMetadata,c chan<- CipherProgress) error {
 		percentage := (currentRead / totalFileSize) * 100.00
 		c <- CipherProgress{Filename: md.Filename,Percentage: percentage}
 	}
+	tracker.Mu.Lock()
+	tracker.Tracker[md.Filename] = MdProgressTracker{Tracker: true}
+	tracker.Mu.Unlock()
 	return nil
 }
 
-func Decryption(md DecryptionMetadata,c chan<- CipherProgress) error {
+func Decryption(md DecryptionMetadata,c chan<- CipherProgress, tracker *GlobalProgressTracker) error {
 	cachedFilename := md.Filename[:len(md.Filename)-len(cliarg.EncryptedFileExt)]
 
 	filepair, err := openCreate(md.Filename, cliarg.DecryptionOp)
@@ -113,7 +149,7 @@ func Decryption(md DecryptionMetadata,c chan<- CipherProgress) error {
 	}
 	defer fileClose(filepair)
 
-	filestat, err := filepair.rfile.Stat()
+	filestat, err := filepair.Rfile.Stat()
 	if  err != nil{
 		fileClose(filepair)
 		os.Remove(cachedFilename)
@@ -121,7 +157,7 @@ func Decryption(md DecryptionMetadata,c chan<- CipherProgress) error {
 	}
 	totalFileSize := float64(filestat.Size())
 
-	if _,err = filepair.rfile.Seek(md.SeekSize,io.SeekStart); err != nil {
+	if _,err = filepair.Rfile.Seek(md.SeekSize,io.SeekStart); err != nil {
 		fileClose(filepair)
 		os.Remove(cachedFilename)
 		return err
@@ -134,8 +170,8 @@ func Decryption(md DecryptionMetadata,c chan<- CipherProgress) error {
 		return err
 	}
 
-	rBuffer := bufio.NewReader(filepair.rfile)
-	wBuffer := bufio.NewWriter(filepair.wfile)
+	rBuffer := bufio.NewReader(filepair.Rfile)
+	wBuffer := bufio.NewWriter(filepair.Wfile)
 	defer wBuffer.Flush()
 	buffer := make([]byte, ChunkSize+gcm.Overhead())
 
@@ -168,35 +204,38 @@ func Decryption(md DecryptionMetadata,c chan<- CipherProgress) error {
 		percentage := (currentRead / totalFileSize) * 100.00
 		c <- CipherProgress{Filename: md.Filename,Percentage: percentage}
 	}
+	tracker.Mu.Lock()
+	tracker.Tracker[md.Filename] = MdProgressTracker{Tracker: true}
+	tracker.Mu.Unlock()
 	return nil
 }
 
 func openCreate(filename, op string) (FilePair, error) {
-	rfile, err := os.Open(filename)
+	Rfile, err := os.Open(filename)
 	if err != nil {
 		return FilePair{}, err
 	}
 
-	var wfile *os.File
+	var Wfile *os.File
 	if op == cliarg.EncryptionOp {
-		wfile, err = os.Create(filename + cliarg.EncryptedFileExt)
+		Wfile, err = os.Create(filename + cliarg.EncryptedFileExt)
 	} else {
-		wfile, err = os.Create(filename[:len(filename)-len(cliarg.EncryptedFileExt)])
+		Wfile, err = os.Create(filename[:len(filename)-len(cliarg.EncryptedFileExt)])
 	}
 	if err != nil {
-		rfile.Close()
+		Rfile.Close()
 		return FilePair{}, err
 	}
 
-	return FilePair{rfile: rfile, wfile: wfile}, nil
+	return FilePair{Rfile: Rfile, Wfile: Wfile}, nil
 }
 
 func fileClose(pair FilePair) {
-	if pair.rfile != nil {
-		pair.rfile.Close()
+	if pair.Rfile != nil {
+		pair.Rfile.Close()
 	}
-	if pair.wfile != nil {
-		pair.wfile.Close()
+	if pair.Wfile != nil {
+		pair.Wfile.Close()
 	}
 }
 

@@ -39,7 +39,7 @@ func ReadPassword(operation string) ([]byte, error) {
     if err != nil {
         return nil, err
     }
-    fmt.Println() 
+    fmt.Println()
     return pw, nil
 }
 

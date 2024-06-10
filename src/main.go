@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	cipher "github.com/ShuaibKhan786/cipher-project/internal/cipher"
@@ -27,7 +29,14 @@ type progressBuffer struct {
 	percentage float64
 }
 
+
 func main() {
+	//setting up signal handler and a notifier 
+	sigs := make(chan os.Signal,1)
+	notify := make(chan bool,1)
+
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
 	// Constructor for metadata
 	metadata := cliarg.NewArgsMetaData()
 
@@ -39,6 +48,16 @@ func main() {
 		fmt.Println()
 		os.Exit(0)
 	}
+
+	//for tracking progress of ciphe specially for signal
+	gtracker := cipher.InitGlobalProgressTracker(metadata.FileNames)
+
+	// Blocking goroutine which blocks until a signal is caught
+	go func ()  {
+		<- sigs
+		notify <- true
+		cleanup(gtracker,&metadata)	
+	}()
 
 	// Read the user input by echo off
 	password, _ := input.ReadPassword(metadata.Operation)
@@ -61,7 +80,7 @@ func main() {
 	progressWg.Add(1)
 	go func(progressWg *sync.WaitGroup) {
 		defer progressWg.Done()
-		displayProgress(metadata.FileNames,channel)
+		displayProgress(metadata.FileNames,channel,notify)
 	}(&progressWg)
 
 	if metadata.Operation == cliarg.EncryptionOp {
@@ -75,8 +94,10 @@ func main() {
 			}
 			go func(md cipher.EncryptionMetadata) {
 				defer workerWg.Done()
-				if err := cipher.Encryption(md, channel); err != nil {
-					fmt.Println(err.Error())
+				if err := cipher.Encryption(md, channel, gtracker); err != nil {
+					fmt.Println(input.Red)
+					fmt.Println(err.Error(), input.Reset)
+					fmt.Println()
 				}
 			}(encMetadata)
 		}
@@ -91,7 +112,7 @@ func main() {
 			}
 			go func(md cipher.DecryptionMetadata) {
 				defer workerWg.Done()
-				if err := cipher.Decryption(md, channel); err != nil {
+				if err := cipher.Decryption(md, channel, gtracker); err != nil {
 					fmt.Println(err.Error())
 				}
 			}(decMetadata)
@@ -101,6 +122,7 @@ func main() {
 	workerWg.Wait()
 	close(channel)
 	progressWg.Wait()
+		
 	end := time.Now()
 
 	if metadata.Operation == cliarg.EncryptionOp {
@@ -114,25 +136,30 @@ func main() {
 }
 
 
-func displayProgress(fileNames []string,channel <-chan cipher.CipherProgress) {
+func displayProgress(fileNames []string,channel <-chan cipher.CipherProgress,notify chan bool) {
 	filesProgressBuffer := make(map[string]*progressBuffer)
 	fmt.Println()
 	for _, file := range fileNames {
 		filesProgressBuffer[file] = &progressBuffer{filename: file}
 		fmt.Println()
 	}
-	for progress := range channel {
-		if pb, ok := filesProgressBuffer[progress.Filename] ; ok {
-			pb.percentage = progress.Percentage
-		}
-		for range filesProgressBuffer {
-			fmt.Print(input.MvCrUpClrLine)
-		}
-		for _, v := range filesProgressBuffer {
-			fmt.Printf("%s\t%.8s...\t\t%.0f%%\n",input.Cyan, v.filename, v.percentage)
+	for {
+		select {
+		case <-notify:
+			fmt.Println(input.Reset)
+			return
+		case progress := <-channel:
+			if pb, ok := filesProgressBuffer[progress.Filename] ; ok {
+				pb.percentage = progress.Percentage
+			}
+			for range filesProgressBuffer {
+				fmt.Print(input.MvCrUpClrLine)
+			}
+			for _, v := range filesProgressBuffer {
+				fmt.Printf("%s\t%.8s...\t\t%.0f%%\n",input.Cyan, v.filename, v.percentage)
+			}
 		}
 	}
-	fmt.Print(input.Reset)
 }
 
 func removesAllfiles(fileNames []string) {
@@ -140,3 +167,30 @@ func removesAllfiles(fileNames []string) {
 		os.Remove(filename)
 	}
 }	
+
+func cleanup(gtracker *cipher.GlobalProgressTracker,md *cliarg.ArgsMetaData) {
+	var ext string
+	if md.Operation == cliarg.EncryptionOp {
+		ext = cliarg.EncryptedFileExt
+	}else {
+		ext = ""
+	}
+	gtracker.Mu.Lock()
+	for _, filename := range md.FileNames {
+		if gt,ok := gtracker.Tracker[filename]; ok {
+			if gt.Tracker {
+				os.Remove(filename+ext)
+			}
+			if gt.Fpair.Rfile != nil {
+				gt.Fpair.Rfile.Close()
+			}
+			if gt.Fpair.Wfile != nil {
+				gt.Fpair.Wfile.Close()
+			}
+		}
+	}
+	gtracker.Mu.Unlock()
+	fmt.Printf("\n%s%s%s\n",input.Red,"Interrupted Sorry",input.Reset)
+	os.Exit(1)
+}
+

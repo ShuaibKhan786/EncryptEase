@@ -58,7 +58,7 @@ func InitGlobalProgressTracker(fileNames []string) *GlobalProgressTracker {
 	gtracker.Mu.Lock()
 	defer gtracker.Mu.Unlock()
 	for _, filename := range fileNames {
-		gtracker.Tracker[filename] = MdProgressTracker{Tracker: false}
+		gtracker.Tracker[filename] = MdProgressTracker{Tracker: true}
 	}
 	return gtracker
 }
@@ -69,10 +69,10 @@ func Encryption(md EncryptionMetadata,c chan<- CipherProgress,tracker *GlobalPro
 		return err
 	}
 	defer func() {
-		tracker.Mu.Lock()
-		tracker.Tracker[md.Filename] = MdProgressTracker{Fpair: filepair}
-		tracker.Mu.Unlock()
 		fileClose(filepair)
+		tracker.Mu.Lock()
+		tracker.Tracker[md.Filename] = MdProgressTracker{Fpair: FilePair{}}
+		tracker.Mu.Unlock()
 	}()
 
 	tracker.Mu.Lock()
@@ -135,7 +135,7 @@ func Encryption(md EncryptionMetadata,c chan<- CipherProgress,tracker *GlobalPro
 		c <- CipherProgress{Filename: md.Filename,Percentage: percentage}
 	}
 	tracker.Mu.Lock()
-	tracker.Tracker[md.Filename] = MdProgressTracker{Tracker: true}
+	tracker.Tracker[md.Filename] = MdProgressTracker{Tracker: false}
 	tracker.Mu.Unlock()
 	return nil
 }
@@ -147,7 +147,16 @@ func Decryption(md DecryptionMetadata,c chan<- CipherProgress, tracker *GlobalPr
 	if err != nil {
 		return err
 	}
-	defer fileClose(filepair)
+	defer func() {
+		tracker.Mu.Lock()
+		tracker.Tracker[md.Filename] = MdProgressTracker{Fpair: filepair}
+		tracker.Mu.Unlock()
+		fileClose(filepair)
+	}()
+
+	tracker.Mu.Lock()
+	tracker.Tracker[md.Filename] = MdProgressTracker{Fpair: filepair}
+	tracker.Mu.Unlock()
 
 	filestat, err := filepair.Rfile.Stat()
 	if  err != nil{
@@ -205,7 +214,7 @@ func Decryption(md DecryptionMetadata,c chan<- CipherProgress, tracker *GlobalPr
 		c <- CipherProgress{Filename: md.Filename,Percentage: percentage}
 	}
 	tracker.Mu.Lock()
-	tracker.Tracker[md.Filename] = MdProgressTracker{Tracker: true}
+	tracker.Tracker[md.Filename] = MdProgressTracker{Tracker: false}
 	tracker.Mu.Unlock()
 	return nil
 }

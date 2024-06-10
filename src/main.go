@@ -136,7 +136,7 @@ func main() {
 }
 
 
-func displayProgress(fileNames []string,channel <-chan cipher.CipherProgress,notify chan bool) {
+func displayProgress(fileNames []string, channel <-chan cipher.CipherProgress, notify chan bool) {
 	filesProgressBuffer := make(map[string]*progressBuffer)
 	fmt.Println()
 	for _, file := range fileNames {
@@ -147,20 +147,27 @@ func displayProgress(fileNames []string,channel <-chan cipher.CipherProgress,not
 		select {
 		case <-notify:
 			fmt.Println(input.Reset)
-			return
-		case progress := <-channel:
-			if pb, ok := filesProgressBuffer[progress.Filename] ; ok {
+			return 
+		case progress, ok := <-channel:
+			if !ok {
+				fmt.Println(input.Reset)
+				return
+			}
+			if pb, ok := filesProgressBuffer[progress.Filename]; ok {
 				pb.percentage = progress.Percentage
 			}
 			for range filesProgressBuffer {
 				fmt.Print(input.MvCrUpClrLine)
 			}
 			for _, v := range filesProgressBuffer {
-				fmt.Printf("%s\t%.8s...\t\t%.0f%%\n",input.Cyan, v.filename, v.percentage)
+				fmt.Printf("%s\t%.15s...\t\t%.0f%%\n", input.Cyan, v.filename, v.percentage)
 			}
 		}
 	}
 }
+
+
+
 
 func removesAllfiles(fileNames []string) {
 	for _, filename := range fileNames {

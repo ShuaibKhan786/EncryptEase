@@ -43,4 +43,19 @@ func ReadPassword(operation string) ([]byte, error) {
     return pw, nil
 }
 
+func DeleteAllfilesChoice() bool {
+    var choice string
+    fmt.Println(Yellow)
+    fmt.Println("Do you want to remove all the files? (y/n)",Reset)
+    fmt.Scanf("%s", &choice) 
+    switch choice {
+    case "y", "Y":
+        return true
+    case "n", "N":
+        return false
+    default:
+        fmt.Println(Red,"Invalid choice. Assuming 'no'.",Reset)
+        return false
+    }
+}
 

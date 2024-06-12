@@ -11,7 +11,8 @@ const (
 	NoArgsErr = "operation or filenames are not provided"
 	InvalidOpErr = "invalid operation"
 	InvalidFilenamesErr = "one or more filenames doesn't exist"
-	InvalidExtErr = "invalid file extention \nfiles must end with (.enc) file for decryption"
+	InvalidDeExtErr = "invalid file extention \nfiles must end with (.enc) file for decryption"
+	InvalidEnExtErr = "invalid file extention \nfiles must not end with (.enc) file for encryption"
 	MinimumNumberOfArgs = 3
 	EncryptedFileExt = ".enc"
 )
@@ -43,9 +44,12 @@ func (md *ArgsMetaData) IsValid() (bool,error){
 	if !validFilenames(md.FileNames) {
 		return false, errors.New(InvalidFilenamesErr)
 	}
-	if md.Operation == DecryptionOp {
-		if !validExtension(md.FileNames) {
-			return false, errors.New(InvalidExtErr)
+
+	if ok,op := validExtension(md.FileNames,md.Operation); !ok {
+		if op == EncryptionOp {
+			return false, errors.New(InvalidEnExtErr)
+		}else {
+			return false, errors.New(InvalidDeExtErr)
 		}
 	}
 
@@ -67,14 +71,16 @@ func validFilenames(filenames []string) bool {
 	return true
 }
 
-func validExtension(filenames []string) bool {
+func validExtension(filenames []string, op string) (bool,string) {
 	for _, v := range filenames {
 		extractedExt := extractExt(v) 
-		if extractedExt != EncryptedFileExt {
-			return false
+		if extractedExt != EncryptedFileExt && op == DecryptionOp {
+			return false, op
+		}else if extractedExt == EncryptedFileExt && op == EncryptionOp{
+			return false, op
 		}
 	}
-	return true
+	return true, ""
 }
 
 func extractExt(filename string) string {

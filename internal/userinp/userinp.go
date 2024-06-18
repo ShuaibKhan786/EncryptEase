@@ -6,34 +6,24 @@ import (
 	"syscall"
 
 	cliarg "github.com/ShuaibKhan786/cipher-project/internal/cmdlineargs"
-	"golang.org/x/term"
-)
+    esccode "github.com/ShuaibKhan786/cipher-project/internal/escapecode" 
 
-const (
-	Reset   = "\033[0m"
-	Red     = "\033[31m"
-	Green   = "\033[32m"
-	Yellow  = "\033[33m"
-	Blue    = "\033[34m"
-	Magenta = "\033[35m"
-	Cyan    = "\033[36m"
-	White   = "\033[37m"
-    MvCrUpClrLine = "\033[A\033[2K\r"
+	"golang.org/x/term"
 )
 
 func ReadPassword(operation string) ([]byte, error) {
     switch operation {
     case cliarg.EncryptionOp:
-		fmt.Print(Red)
-        fmt.Println("WARNING: Please remember your password!",Reset,Green)
+		fmt.Print(esccode.Red)
+        fmt.Println("WARNING: Please remember your password!",esccode.Reset,esccode.Green)
         fmt.Println("Once the password is lost, decryption will not be possible.")
         fmt.Println("It is highly recommended to use a strong and memorable password.")
-        fmt.Println(Reset)
+        fmt.Println(esccode.Reset)
     case cliarg.DecryptionOp:
     default:
         return nil, errors.New(cliarg.InvalidOpErr)
     }
-	fmt.Printf(Yellow + "Password: " + Reset)
+	fmt.Printf(esccode.Yellow + "Password: " + esccode.Reset)
 
     pw, err := term.ReadPassword(int(syscall.Stdin))
     if err != nil {
@@ -45,8 +35,8 @@ func ReadPassword(operation string) ([]byte, error) {
 
 func DeleteAllfilesChoice() bool {
     var choice string
-    fmt.Println(Yellow)
-    fmt.Println("Do you want to remove all the files? (y/n)",Reset)
+    fmt.Println(esccode.Yellow)
+    fmt.Println("Do you want to remove all the files? (y/n)",esccode.Reset)
     fmt.Scanf("%s", &choice) 
     switch choice {
     case "y", "Y":
@@ -54,7 +44,7 @@ func DeleteAllfilesChoice() bool {
     case "n", "N":
         return false
     default:
-        fmt.Println(Red,"Invalid choice. Assuming 'no'.",Reset)
+        fmt.Println(esccode.Red,"Invalid choice. Assuming 'no'.",esccode.Reset)
         return false
     }
 }

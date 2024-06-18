@@ -12,6 +12,7 @@ import (
 	cliarg "github.com/ShuaibKhan786/cipher-project/internal/cmdlineargs"
 	salting "github.com/ShuaibKhan786/cipher-project/internal/salting"
 	input "github.com/ShuaibKhan786/cipher-project/internal/userinp"
+    esccode "github.com/ShuaibKhan786/cipher-project/internal/escapecode" 
 	argon "golang.org/x/crypto/argon2"
 )
 
@@ -42,8 +43,7 @@ func main() {
 	// Validate operation (-e | -d), files
 	state, err := metadata.IsValid()
 	if !state {
-		fmt.Println(input.Red)
-		fmt.Println(err, input.Reset)
+		fmt.Println(err)
 		fmt.Println()
 		os.Exit(0)
 	}
@@ -94,8 +94,8 @@ func main() {
 			go func(md cipher.EncryptionMetadata) {
 				defer workerWg.Done()
 				if err := cipher.Encryption(md, channel, gtracker); err != nil {
-					fmt.Println(input.Red)
-					fmt.Println(err.Error(), input.Reset)
+					fmt.Println(esccode.Red)
+					fmt.Println(err.Error(), esccode.Reset)
 					fmt.Println()
 				}
 			}(encMetadata)
@@ -131,7 +131,7 @@ func main() {
 	}
 
 	elapsed := end.Sub(start)
-	fmt.Printf("%v\nIt took %v%v\n", input.White, elapsed, input.Reset)
+	fmt.Printf("%v\nIt took %v%v\n", esccode.White, elapsed, esccode.Reset)
 }
 
 func displayProgress(fileNames []string, channel <-chan cipher.CipherProgress, notify chan bool) {
@@ -144,21 +144,21 @@ func displayProgress(fileNames []string, channel <-chan cipher.CipherProgress, n
 	for {
 		select {
 		case <-notify:
-			fmt.Println(input.Reset)
+			fmt.Println(esccode.Reset)
 			return
 		case progress, ok := <-channel:
 			if !ok {
-				fmt.Println(input.Reset)
+				fmt.Println(esccode.Reset)
 				return
 			}
 			if pb, ok := filesProgressBuffer[progress.Filename]; ok {
 				pb.percentage = progress.Percentage
 			}
 			for range filesProgressBuffer {
-				fmt.Print(input.MvCrUpClrLine)
+				fmt.Print(esccode.MvCrUpClrLine)
 			}
 			for _, v := range filesProgressBuffer {
-				fmt.Printf("%s\t%.15s...\t\t%.0f%%\n", input.Cyan, v.filename, v.percentage)
+				fmt.Printf("%s\t%.15s...\t\t%.0f%%\n", esccode.Cyan, v.filename, v.percentage)
 			}
 		}
 	}
@@ -190,6 +190,6 @@ func cleanup(gtracker *cipher.GlobalProgressTracker, md *cliarg.ArgsMetaData) {
 		}
 	}
 	gtracker.Mu.Unlock()
-	fmt.Printf("\n%s%s%s\n", input.Red, "Interrupted Sorry", input.Reset)
+	fmt.Printf("\n%s%s%s\n", esccode.Red, "Interrupted Sorry", esccode.Reset)
 	os.Exit(1)
 }

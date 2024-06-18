@@ -3,18 +3,25 @@ package cmdlineargs
 import (
 	"errors"
 	"os"
+
+    esccode "github.com/ShuaibKhan786/cipher-project/internal/escapecode" 
 )
 
 const (
 	EncryptionOp = "-e"
 	DecryptionOp = "-d"
-	NoArgsErr = "operation or filenames are not provided"
 	InvalidOpErr = "invalid operation"
 	InvalidFilenamesErr = "one or more filenames doesn't exist"
 	InvalidDeExtErr = "invalid file extention \nfiles must end with (.enc) file for decryption"
 	InvalidEnExtErr = "invalid file extention \nfiles must not end with (.enc) file for encryption"
 	MinimumNumberOfArgs = 3
 	EncryptedFileExt = ".enc"
+	NoArgs = esccode.Green+"EncryptEase is a file cipher utilizing AES in GCM mode, with key derivation handled by Argon2d." +
+	esccode.Blue+"\n\nYou can encrypt or decrypt single or multiple files using a secure password." +
+	esccode.Red+"\n\nPlease use a strong and memorable password." +
+	esccode.Yellow+"\n\tEncryption: EncryptEase -e your-filenames" +
+	"\n\tDecryption: EncryptEase -d your-filenames.enc"+
+	esccode.Reset
 )
 
 type ArgsMetaData struct {
@@ -36,20 +43,20 @@ func NewArgsMetaData() ArgsMetaData {
 
 func (md *ArgsMetaData) IsValid() (bool,error){
 	if md.Operation == "" || md.FileNames == nil {
-		return false, errors.New(NoArgsErr)
+		return false, errors.New(NoArgs)
 	} 
 	if !validOperation(md.Operation) {
-		return false, errors.New(InvalidOpErr)
+		return false, errors.New(esccode.Red+InvalidOpErr+esccode.Reset)
 	}
 	if !validFilenames(md.FileNames) {
-		return false, errors.New(InvalidFilenamesErr)
+		return false, errors.New(esccode.Red+InvalidFilenamesErr+esccode.Reset)
 	}
 
 	if ok,op := validExtension(md.FileNames,md.Operation); !ok {
 		if op == EncryptionOp {
-			return false, errors.New(InvalidEnExtErr)
+			return false, errors.New(esccode.Red+InvalidEnExtErr+esccode.Reset)
 		}else {
-			return false, errors.New(InvalidDeExtErr)
+			return false, errors.New(esccode.Red+InvalidDeExtErr+esccode.Reset)
 		}
 	}
 

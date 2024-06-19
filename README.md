@@ -42,7 +42,11 @@ To use EncryptEase, follow these steps:
         ```bash
         chmod +x script.sh
         ```
-    
+    - Now *cd* into EncryptEase
+        
+        ```bash
+        cd EncryptEase
+        ```
     - Run the bash script with options:
     
         - For compiling and installing, use:

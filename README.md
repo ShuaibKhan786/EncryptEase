@@ -37,15 +37,15 @@ To use EncryptEase, follow these steps:
 
     For macOS and Linux:
     
-    - First change the file permission of the *script.sh* file
+    - Now *cd* into EncryptEase
     
         ```bash
-        chmod +x script.sh
+        cd EncryptEase
         ```
-    - Now *cd* into EncryptEase
+    - First change the file permission of the *script.sh* file
         
         ```bash
-        cd EncryptEase
+        chmod +x script.sh
         ```
     - Run the bash script with options:
     

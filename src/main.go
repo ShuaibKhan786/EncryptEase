@@ -48,7 +48,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	//for tracking progress of ciphe specially for signal
+	//for tracking progress of cipher specially for signal
 	gtracker := cipher.InitGlobalProgressTracker(metadata.FileNames)
 
 	// Blocking goroutine which blocks until a signal is caught
@@ -112,6 +112,9 @@ func main() {
 			go func(md cipher.DecryptionMetadata) {
 				defer workerWg.Done()
 				if err := cipher.Decryption(md, channel, gtracker); err != nil {
+					if err.Error() == "cipher: message authentication failed" {
+						fmt.Println(esccode.Red,"\tWrong Password",esccode.Reset)
+					} 
 					fmt.Println(err.Error())
 				}
 			}(decMetadata)

@@ -38,6 +38,55 @@ run_build_command() {
     rm -rf temp
 }
 
+run_prebuild_command() {
+    if check_something_install "EncryptEase"; then
+        echo -e "\nEncryptEase already installed"
+        exit 1
+    fi
+
+    os="$(uname -s)"
+    arch="$(uname -m)"
+
+    precompiledPath=""
+
+    case $os in 
+        "Linux")
+            precompiledPath="./precompiledbin/linux/64bitarch/EncryptEase"
+            ;;
+        "Darwin")
+            case $arch in
+                "x86_64")
+                    precompiledPath="./precompiledbin/mac/64bitarch/EncryptEase"
+                    ;;
+                "arm64")
+                    precompiledPath="./precompiledbin/mac/armbitarch/EncryptEase"
+                    ;;
+                *)
+                    echo -e "\nOther Mac architecture is not supported"
+                    exit 1
+                ;;
+            esac
+            ;;
+        *)
+            echo -e "\nprecompiled install is for  linux and macOS only"
+            ;;
+    esac
+
+    if [ ! -f "$precompiledPath" ]; then
+        echo -e "\nPrecompiled binary not found at $precompiledPath"
+        exit 1
+    fi
+
+    sudo cp $precompiledPath /usr/local/bin
+
+    sudo chmod +x /usr/local/bin/EncryptEase
+}
+
+common_message() {
+    echo -e "\nSuccessfully upgraded EncryptEase"
+    echo -e "\nRun:\n\tEncryptEase"
+}
+
 upgrade_command() {
     if ! check_something_install "EncryptEase"; then
         echo -e "\nEncryptEase is not installed"
@@ -57,8 +106,7 @@ upgrade_command() {
             exit 1
         else
             run_build_command
-            echo -e "\nSuccessfully upgraded EncryptEase"
-            echo -e "\nRun:\n\tEncryptEase"
+            common_message
         fi
     else
         echo -e "\nGo is not installed, precompiled implementation coming soon."
@@ -80,15 +128,15 @@ case "$1" in
 
         if check_something_install "go"; then
             run_build_command
-            echo -e "\nSuccessfully installed EncryptEase"
-            echo -e "\nRun:\n\tEncryptEase"
+            common_message
         else
             echo -e "\nGo is not installed"
             exit 1
         fi
         ;;
     "-prebuild")
-        echo "Prebuilt installation will be implemented soon"
+        run_prebuild_command
+        common_message
         ;;
     "-upgrade")
         upgrade_command
